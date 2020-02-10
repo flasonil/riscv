@@ -38,6 +38,9 @@ module riscv_if_stage
 (
     input  logic        clk,
     input  logic        rst_n,
+input logic lockstep_mode,
+input logic restore_pc_i,
+input logic [31:0] pc_id_lck_i,
 
     // Used to calculate the exception offsets
     input  logic [23:0] m_trap_base_addr_i,
@@ -152,7 +155,7 @@ module riscv_if_stage
 
     unique case (pc_mux_i)
       PC_BOOT:      fetch_addr_n = {boot_addr_i, 1'b0};
-      PC_JUMP:      fetch_addr_n = jump_target_id_i;
+      PC_JUMP:      fetch_addr_n = (restore_pc_i)?pc_id_lck_i:jump_target_id_i;
       PC_BRANCH:    fetch_addr_n = jump_target_ex_i;
       PC_EXCEPTION: fetch_addr_n = exc_pc;             // set PC to exception handler
       PC_MRET:      fetch_addr_n = mepc_i; // PC is restored when returning from IRQ/exception
@@ -267,6 +270,8 @@ module riscv_if_stage
 
       // serving aligned 32 bit or 16 bit instruction, we don't know yet
       WAIT: begin
+if(lockstep_mode) offset_fsm_ns = IDLE;
+else begin
         if (fetch_valid) begin
           valid   = 1'b1; // an instruction is ready for ID stage
 
@@ -275,6 +280,7 @@ module riscv_if_stage
             offset_fsm_ns = WAIT;
           end
         end
+end
       end
 
       default: begin

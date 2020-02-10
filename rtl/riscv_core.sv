@@ -65,6 +65,7 @@ module riscv_core
 
   input  logic        clock_en_i,    // enable clock, otherwise it is gated
   input  logic        test_en_i,     // enable all clock gates for testing
+  input  logic        lockstep_mode,
 
   input  logic        fregfile_disable_i,  // disable the fp regfile, using int regfile instead
 
@@ -89,6 +90,27 @@ module riscv_core
   output logic [31:0] data_addr_o,
   output logic [31:0] data_wdata_o,
   input  logic [31:0] data_rdata_i,
+
+  // IF/ID signals
+  output logic                           is_hwlp_id,
+  output logic [1:0]                     hwlp_dec_cnt_id,
+  output logic                           instr_valid_id,
+  output logic [31:0]                    instr_rdata_id, // Instruction sampled inside IF stage
+  output logic                           is_compressed_id,
+  output logic                           is_fetch_failed_id,
+  output logic                           illegal_c_insn_id, // Illegal compressed instruction sent to ID stage
+  output logic [31:0]                    pc_if, // Program counter in IF stage
+  output logic [31:0]                    pc_id, // Program counter in ID stage
+
+  input logic                            is_hwlp_id_lck_i,
+  input logic [1:0]                      hwlp_dec_cnt_id_lck_i,
+  input logic                            instr_valid_id_lck_i,
+  input logic [31:0]                     instr_rdata_id_lck_i,
+  input logic                            is_compressed_id_lck_i,
+  input logic                            is_fetch_failed_id_lck_i,
+  input logic                            illegal_c_insn_id_lck_i,
+  input logic [31:0]                     pc_if_lck_i,
+  input logic [31:0]                     pc_id_lck_i,
 
   // apu-interconnect
   // handshake signals
@@ -130,7 +152,7 @@ module riscv_core
   localparam APU         = ((SHARED_DSP_MULT==1) | (SHARED_INT_DIV==1) | (FPU==1)) ? 1 : 0;
 
   // IF/ID signals
-  logic              is_hwlp_id;
+/*  logic              is_hwlp_id;
   logic [N_HWLP-1:0] hwlp_dec_cnt_id;
   logic              instr_valid_id;
   logic [31:0]       instr_rdata_id;    // Instruction sampled inside IF stage
@@ -138,7 +160,7 @@ module riscv_core
   logic              is_fetch_failed_id;
   logic              illegal_c_insn_id; // Illegal compressed instruction sent to ID stage
   logic [31:0]       pc_if;             // Program counter in IF stage
-  logic [31:0]       pc_id;             // Program counter in ID stage
+  logic [31:0]       pc_id;*/             // Program counter in ID stage
 
   logic              clear_instr_valid;
   logic              pc_set;
@@ -343,6 +365,20 @@ module riscv_core
   logic [31:0]                      instr_addr_pmp;
   logic                             instr_err_pmp;
 
+   logic lck_mode;
+logic restore_pc;
+
+//   logic instr_req_o_internal;
+   always_comb begin
+      if((cluster_id_i==6'h1f)||(core_id_i=='0))
+        lck_mode = 0;
+      else
+        lck_mode = lockstep_mode;
+//      if((lck_mode == 1)&&(core_id_i!='0)&&(cluster_id_i=='0))
+//        instr_req_o = 1'b0;
+//      else
+//        instr_req_o = instr_req_o_internal;//instr_req_o = 1'b0;
+   end
 
   //Simchecker signal
   logic is_interrupt;
@@ -465,6 +501,9 @@ module riscv_core
   (
     .clk                 ( clk               ),
     .rst_n               ( rst_ni            ),
+.lockstep_mode(lck_mode),
+.restore_pc_i(restore_pc),
+.pc_id_lck_i(pc_id_lck_i),
 
     // boot address
     .boot_addr_i         ( boot_addr_i[31:1] ),
@@ -564,6 +603,9 @@ module riscv_core
 
     .fregfile_disable_i           ( fregfile_disable_i   ),
 
+.lockstep_mode(lck_mode),
+.restore_pc_o(restore_pc),
+
     // Processor Enable
     .fetch_enable_i               ( fetch_enable_i       ),
     .ctrl_busy_o                  ( ctrl_busy            ),
@@ -571,10 +613,10 @@ module riscv_core
     .is_decoding_o                ( is_decoding          ),
 
     // Interface to instruction memory
-    .hwlp_dec_cnt_i               ( hwlp_dec_cnt_id      ),
-    .is_hwlp_i                    ( is_hwlp_id           ),
-    .instr_valid_i                ( instr_valid_id       ),
-    .instr_rdata_i                ( instr_rdata_id       ),
+    .hwlp_dec_cnt_i               ( lck_mode ? hwlp_dec_cnt_id_lck_i : hwlp_dec_cnt_id      ),
+    .is_hwlp_i                    ( lck_mode ? is_hwlp_id_lck_i      : is_hwlp_id          ),
+    .instr_valid_i                ( lck_mode ? instr_valid_id_lck_i  : instr_valid_id       ),
+    .instr_rdata_i                ( lck_mode ? instr_rdata_id_lck_i  : instr_rdata_id       ),
     .instr_req_o                  ( instr_req_int        ),
 
     // Jumps and branches
@@ -589,12 +631,12 @@ module riscv_core
     .exc_pc_mux_o                 ( exc_pc_mux_id        ),
     .exc_cause_o                  ( exc_cause            ),
     .trap_addr_mux_o              ( trap_addr_mux        ),
-    .illegal_c_insn_i             ( illegal_c_insn_id    ),
-    .is_compressed_i              ( is_compressed_id     ),
-    .is_fetch_failed_i            ( is_fetch_failed_id   ),
+    .illegal_c_insn_i             ( lck_mode ? illegal_c_insn_id_lck_i  :illegal_c_insn_id    ),
+    .is_compressed_i              ( lck_mode ? is_compressed_id_lck_i   :is_compressed_id     ),
+    .is_fetch_failed_i            ( lck_mode ? is_fetch_failed_id_lck_i :is_fetch_failed_id   ),
 
-    .pc_if_i                      ( pc_if                ),
-    .pc_id_i                      ( pc_id                ),
+    .pc_if_i                      ( lck_mode ? pc_if_lck_i :pc_if                ),
+    .pc_id_i                      ( lck_mode ? pc_id_lck_i :pc_id                ),
 
     // Stalls
     .halt_if_o                    ( halt_if              ),

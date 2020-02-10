@@ -236,6 +236,9 @@ module riscv_id_stage
     input  logic        regfile_alu_we_fw_i,
     input  logic [31:0] regfile_alu_wdata_fw_i,
 
+input logic lockstep_mode,
+output logic restore_pc_o,
+
     // from ALU
     input  logic        mult_multicycle_i,    // when we need multiple cycles in the multiplier and use op c as storage
 
@@ -1162,6 +1165,8 @@ module riscv_id_stage
   (
     .clk                            ( clk                    ),
     .rst_n                          ( rst_n                  ),
+.lockstep_mode(lockstep_mode),
+.restore_pc_o(restore_pc_o),
 
     .fetch_enable_i                 ( fetch_enable_i         ),
     .ctrl_busy_o                    ( ctrl_busy_o            ),

@@ -34,159 +34,159 @@ module riscv_controller
   parameter FPU               = 0
 )
 (
-  input  logic        clk,
-  input  logic        rst_n,
+ input logic        clk,
+ input logic        rst_n,
 
-  input  logic        fetch_enable_i,             // Start the decoding
-  output logic        ctrl_busy_o,                // Core is busy processing instructions
-  output logic        first_fetch_o,              // Core is at the FIRST FETCH stage
-  output logic        is_decoding_o,              // Core is in decoding state
-  input  logic        is_fetch_failed_i,
+ input logic        fetch_enable_i, // Start the decoding
+ output logic       ctrl_busy_o, // Core is busy processing instructions
+ output logic       first_fetch_o, // Core is at the FIRST FETCH stage
+ output logic       is_decoding_o, // Core is in decoding state
+ input logic        is_fetch_failed_i,
 
   // decoder related signals
-  output logic        deassert_we_o,              // deassert write enable for next instruction
+ output logic       deassert_we_o, // deassert write enable for next instruction
 
-  input  logic        illegal_insn_i,             // decoder encountered an invalid instruction
-  input  logic        ecall_insn_i,               // ecall encountered an mret instruction
-  input  logic        mret_insn_i,                // decoder encountered an mret instruction
-  input  logic        uret_insn_i,                // decoder encountered an uret instruction
+ input logic        illegal_insn_i, // decoder encountered an invalid instruction
+ input logic        ecall_insn_i, // ecall encountered an mret instruction
+ input logic        mret_insn_i, // decoder encountered an mret instruction
+ input logic        uret_insn_i, // decoder encountered an uret instruction
 
-  input  logic        dret_insn_i,                // decoder encountered an dret instruction
+ input logic        dret_insn_i, // decoder encountered an dret instruction
 
-  input  logic        mret_dec_i,
-  input  logic        uret_dec_i,
-  input  logic        dret_dec_i,
+ input logic        mret_dec_i,
+ input logic        uret_dec_i,
+ input logic        dret_dec_i,
 
-  input  logic        pipe_flush_i,               // decoder wants to do a pipe flush
-  input  logic        ebrk_insn_i,                // decoder encountered an ebreak instruction
-  input  logic        fencei_insn_i,              // decoder encountered an fence.i instruction
-  input  logic        csr_status_i,               // decoder encountered an csr status instruction
-  input  logic        instr_multicycle_i,         // true when multiple cycles are decoded
+ input logic        pipe_flush_i, // decoder wants to do a pipe flush
+ input logic        ebrk_insn_i, // decoder encountered an ebreak instruction
+ input logic        fencei_insn_i, // decoder encountered an fence.i instruction
+ input logic        csr_status_i, // decoder encountered an csr status instruction
+ input logic        instr_multicycle_i, // true when multiple cycles are decoded
 
-  output logic        hwloop_mask_o,              //prevent writes on the hwloop instructions in case interrupt are taken
+ output logic       hwloop_mask_o, //prevent writes on the hwloop instructions in case interrupt are taken
 
   // from IF/ID pipeline
-  input  logic        instr_valid_i,              // instruction coming from IF/ID pipeline is valid
+ input logic        instr_valid_i, // instruction coming from IF/ID pipeline is valid
 
   // from prefetcher
-  output logic        instr_req_o,                // Start fetching instructions
+ output logic       instr_req_o, // Start fetching instructions
 
   // to prefetcher
-  output logic        pc_set_o,                   // jump to address set by pc_mux
-  output logic [2:0]  pc_mux_o,                   // Selector in the Fetch stage to select the rigth PC (normal, jump ...)
-  output logic [2:0]  exc_pc_mux_o,               // Selects target PC for exception
-  output logic        trap_addr_mux_o,            // Selects trap address base
+ output logic       pc_set_o, // jump to address set by pc_mux
+ output logic [2:0] pc_mux_o, // Selector in the Fetch stage to select the rigth PC (normal, jump ...)
+ output logic [2:0] exc_pc_mux_o, // Selects target PC for exception
+ output logic       trap_addr_mux_o, // Selects trap address base
 
   // LSU
-  input  logic        data_req_ex_i,              // data memory access is currently performed in EX stage
-  input  logic        data_we_ex_i,
-  input  logic        data_misaligned_i,
-  input  logic        data_load_event_i,
-  input  logic        data_err_i,
-  output logic        data_err_ack_o,
+ input logic        data_req_ex_i, // data memory access is currently performed in EX stage
+ input logic        data_we_ex_i,
+ input logic        data_misaligned_i,
+ input logic        data_load_event_i,
+ input logic        data_err_i,
+ output logic       data_err_ack_o,
 
   // from ALU
-  input  logic        mult_multicycle_i,          // multiplier is taken multiple cycles and uses op c as storage
+ input logic        mult_multicycle_i, // multiplier is taken multiple cycles and uses op c as storage
 
   // APU dependency checks
-  input  logic        apu_en_i,
-  input  logic        apu_read_dep_i,
-  input  logic        apu_write_dep_i,
+ input logic        apu_en_i,
+ input logic        apu_read_dep_i,
+ input logic        apu_write_dep_i,
 
-  output logic        apu_stall_o,
+ output logic       apu_stall_o,
 
   // jump/branch signals
-  input  logic        branch_taken_ex_i,          // branch taken signal from EX ALU
-  input  logic [1:0]  jump_in_id_i,               // jump is being calculated in ALU
-  input  logic [1:0]  jump_in_dec_i,              // jump is being calculated in ALU
+ input logic        branch_taken_ex_i, // branch taken signal from EX ALU
+ input logic [1:0]  jump_in_id_i, // jump is being calculated in ALU
+ input logic [1:0]  jump_in_dec_i, // jump is being calculated in ALU
 
   // Interrupt Controller Signals
-  input  logic        irq_i,
-  input  logic        irq_req_ctrl_i,
-  input  logic        irq_sec_ctrl_i,
-  input  logic [4:0]  irq_id_ctrl_i,
-  input  logic        m_IE_i,                     // interrupt enable bit from CSR (M mode)
-  input  logic        u_IE_i,                     // interrupt enable bit from CSR (U mode)
-  input  PrivLvl_t    current_priv_lvl_i,
+ input logic        irq_i,
+ input logic        irq_req_ctrl_i,
+ input logic        irq_sec_ctrl_i,
+ input logic [4:0]  irq_id_ctrl_i,
+ input logic        m_IE_i, // interrupt enable bit from CSR (M mode)
+ input logic        u_IE_i, // interrupt enable bit from CSR (U mode)
+ input              PrivLvl_t current_priv_lvl_i,
 
-  output logic        irq_ack_o,
-  output logic [4:0]  irq_id_o,
+ output logic       irq_ack_o,
+ output logic [4:0] irq_id_o,
 
-  output logic [5:0]  exc_cause_o,
-  output logic        exc_ack_o,
-  output logic        exc_kill_o,
+ output logic [5:0] exc_cause_o,
+ output logic       exc_ack_o,
+ output logic       exc_kill_o,
 
   // Debug Signal
-  output logic         debug_mode_o,
-  output logic [2:0]   debug_cause_o,
-  output logic         debug_csr_save_o,
-  input  logic         debug_req_i,
-  input  logic         debug_single_step_i,
-  input  logic         debug_ebreakm_i,
-  input  logic         debug_ebreaku_i,
+ output logic       debug_mode_o,
+ output logic [2:0] debug_cause_o,
+ output logic       debug_csr_save_o,
+ input logic        debug_req_i,
+ input logic        debug_single_step_i,
+ input logic        debug_ebreakm_i,
+ input logic        debug_ebreaku_i,
 
 
-  output logic        csr_save_if_o,
-  output logic        csr_save_id_o,
-  output logic        csr_save_ex_o,
-  output logic [5:0]  csr_cause_o,
-  output logic        csr_irq_sec_o,
-  output logic        csr_restore_mret_id_o,
-  output logic        csr_restore_uret_id_o,
+ output logic       csr_save_if_o,
+ output logic       csr_save_id_o,
+ output logic       csr_save_ex_o,
+ output logic [5:0] csr_cause_o,
+ output logic       csr_irq_sec_o,
+ output logic       csr_restore_mret_id_o,
+ output logic       csr_restore_uret_id_o,
 
-  output logic        csr_restore_dret_id_o,
+ output logic       csr_restore_dret_id_o,
 
-  output logic        csr_save_cause_o,
+ output logic       csr_save_cause_o,
 
 
   // Regfile target
-  input  logic        regfile_we_id_i,            // currently decoded we enable
-  input  logic [5:0]  regfile_alu_waddr_id_i,     // currently decoded target address
+ input logic        regfile_we_id_i, // currently decoded we enable
+ input logic [5:0]  regfile_alu_waddr_id_i, // currently decoded target address
 
   // Forwarding signals from regfile
-  input  logic        regfile_we_ex_i,            // FW: write enable from  EX stage
-  input  logic [5:0]  regfile_waddr_ex_i,         // FW: write address from EX stage
-  input  logic        regfile_we_wb_i,            // FW: write enable from  WB stage
-  input  logic        regfile_alu_we_fw_i,        // FW: ALU/MUL write enable from  EX stage
+ input logic        regfile_we_ex_i, // FW: write enable from  EX stage
+ input logic [5:0]  regfile_waddr_ex_i, // FW: write address from EX stage
+ input logic        regfile_we_wb_i, // FW: write enable from  WB stage
+ input logic        regfile_alu_we_fw_i, // FW: ALU/MUL write enable from  EX stage
 
   // forwarding signals
-  output logic [1:0]  operand_a_fw_mux_sel_o,     // regfile ra data selector form ID stage
-  output logic [1:0]  operand_b_fw_mux_sel_o,     // regfile rb data selector form ID stage
-  output logic [1:0]  operand_c_fw_mux_sel_o,     // regfile rc data selector form ID stage
+ output logic [1:0] operand_a_fw_mux_sel_o, // regfile ra data selector form ID stage
+ output logic [1:0] operand_b_fw_mux_sel_o, // regfile rb data selector form ID stage
+ output logic [1:0] operand_c_fw_mux_sel_o, // regfile rc data selector form ID stage
 
   // forwarding detection signals
-  input logic         reg_d_ex_is_reg_a_i,
-  input logic         reg_d_ex_is_reg_b_i,
-  input logic         reg_d_ex_is_reg_c_i,
-  input logic         reg_d_wb_is_reg_a_i,
-  input logic         reg_d_wb_is_reg_b_i,
-  input logic         reg_d_wb_is_reg_c_i,
-  input logic         reg_d_alu_is_reg_a_i,
-  input logic         reg_d_alu_is_reg_b_i,
-  input logic         reg_d_alu_is_reg_c_i,
+ input logic        reg_d_ex_is_reg_a_i,
+ input logic        reg_d_ex_is_reg_b_i,
+ input logic        reg_d_ex_is_reg_c_i,
+ input logic        reg_d_wb_is_reg_a_i,
+ input logic        reg_d_wb_is_reg_b_i,
+ input logic        reg_d_wb_is_reg_c_i,
+ input logic        reg_d_alu_is_reg_a_i,
+ input logic        reg_d_alu_is_reg_b_i,
+ input logic        reg_d_alu_is_reg_c_i,
 
   // stall signals
-  output logic        halt_if_o,
-  output logic        halt_id_o,
+ output logic       halt_if_o,
+ output logic       halt_id_o,
 
-input logic lockstep_mode,
-output logic restore_pc_o,
+ input logic        lockstep_mode,
+ output logic       restore_pc_o,
 
-  output logic        misaligned_stall_o,
-  output logic        jr_stall_o,
-  output logic        load_stall_o,
+ output logic       misaligned_stall_o,
+ output logic       jr_stall_o,
+ output logic       load_stall_o,
 
-  input  logic        id_ready_i,                 // ID stage is ready
+ input logic        id_ready_i, // ID stage is ready
 
-  input  logic        ex_valid_i,                 // EX stage is done
+ input logic        ex_valid_i, // EX stage is done
 
-  input  logic        wb_ready_i,                 // WB stage is ready
+ input logic        wb_ready_i, // WB stage is ready
 
   // Performance Counters
-  output logic        perf_jump_o,                // we are executing a jump instruction   (j, jr, jal, jalr)
-  output logic        perf_jr_stall_o,            // stall due to jump-register-hazard
-  output logic        perf_ld_stall_o,            // stall due to load-use-hazard
-  output logic        perf_pipeline_stall_o       // stall due to elw extra cycles
+ output logic       perf_jump_o, // we are executing a jump instruction   (j, jr, jal, jalr)
+ output logic       perf_jr_stall_o, // stall due to jump-register-hazard
+ output logic       perf_ld_stall_o, // stall due to load-use-hazard
+ output logic       perf_pipeline_stall_o       // stall due to elw extra cycles
 );
 
   // FSM state encoding
@@ -194,7 +194,7 @@ output logic restore_pc_o,
                       DECODE,
                       IRQ_TAKEN_ID, IRQ_TAKEN_IF, IRQ_FLUSH, IRQ_FLUSH_ELW, ELW_EXE,
                       FLUSH_EX, FLUSH_WB, XRET_JUMP,
-                      DBG_TAKEN_ID, DBG_TAKEN_IF, DBG_FLUSH, DBG_WAIT_BRANCH, LOCKSTEP, LOCKSTEP1 } ctrl_fsm_cs, ctrl_fsm_ns;
+                      DBG_TAKEN_ID, DBG_TAKEN_IF, DBG_FLUSH, DBG_WAIT_BRANCH, LOCKSTEP, RESTORE_PC } ctrl_fsm_cs, ctrl_fsm_ns;
 
   logic jump_done, jump_done_q, jump_in_dec, branch_in_id;
   logic boot_done, boot_done_q;
@@ -255,7 +255,8 @@ output logic restore_pc_o,
     exc_cause_o            = '0;
     exc_pc_mux_o           = EXC_PC_IRQ;
     trap_addr_mux_o        = TRAP_MACHINE;
-restore_pc_o=1'b0;
+    
+    restore_pc_o           = 1'b0;
 
     csr_cause_o            = '0;
     csr_irq_sec_o          = 1'b0;
@@ -383,21 +384,26 @@ restore_pc_o=1'b0;
 
       end
 
-LOCKSTEP1:begin
-restore_pc_o = 1'b1;
-if(instr_valid_i) ctrl_fsm_ns = DECODE;
-end
+      RESTORE_PC:
+        begin
+          restore_pc_o = 1'b1;
+          if(instr_valid_i) 
+            ctrl_fsm_ns = DECODE;
+          else
+            ctrl_fsm_ns = RESTORE_PC;
+        end
 
-LOCKSTEP:
-begin
-instr_req_o=1'b0;
-if(lockstep_mode==0)begin
-instr_req_o=1'b1;
-restore_pc_o = 1'b1;
-pc_set_o = 1'b1;
-pc_mux_o = PC_JUMP;
-ctrl_fsm_ns = LOCKSTEP1;
-end
+      LOCKSTEP:
+        begin
+          instr_req_o = 1'b0;
+          if(lockstep_mode == 0)
+            begin
+              instr_req_o  = 1'b1;
+              restore_pc_o = 1'b1;
+              pc_set_o     = 1'b1;
+              pc_mux_o     = PC_JUMP;
+              ctrl_fsm_ns  = RESTORE_PC;
+            end
           if (branch_taken_ex_i)
           begin //taken branch
             // there is a branch in the EX stage that is taken
@@ -607,11 +613,11 @@ end
             is_decoding_o         = 1'b0;
             perf_pipeline_stall_o = data_load_event_i;
           end
-end
+        end
 
       DECODE:
       begin
-if(lockstep_mode) ctrl_fsm_ns=LOCKSTEP;
+        if(lockstep_mode) ctrl_fsm_ns = LOCKSTEP;
 
           if (branch_taken_ex_i)
           begin //taken branch

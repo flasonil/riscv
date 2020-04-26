@@ -320,6 +320,7 @@ parameter PC_FENCEI        = 3'b001;
 parameter PC_MRET          = 3'b101;
 parameter PC_URET          = 3'b110;
 parameter PC_DRET          = 3'b111;
+parameter PC_LCKRESTORE		 = 4'b1000;
 
 // Exception PC mux selector defines
 parameter EXC_PC_EXCEPTION = 3'b000;

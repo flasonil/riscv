@@ -73,7 +73,7 @@ module riscv_controller
 
   // to prefetcher
  output logic       pc_set_o, // jump to address set by pc_mux
- output logic [2:0] pc_mux_o, // Selector in the Fetch stage to select the rigth PC (normal, jump ...)
+ output logic [3:0] pc_mux_o, // Selector in the Fetch stage to select the rigth PC (normal, jump ...)
  output logic [2:0] exc_pc_mux_o, // Selects target PC for exception
  output logic       trap_addr_mux_o, // Selects trap address base
 
@@ -169,7 +169,8 @@ module riscv_controller
  output logic       halt_if_o,
  output logic       halt_id_o,
 
- input logic        lockstep_mode,
+ input logic        lockstep_mode_if,
+ input logic 				lockstep_mode_id,
  output logic       restore_pc_o,
 
  output logic       misaligned_stall_o,
@@ -194,7 +195,7 @@ module riscv_controller
                       DECODE,
                       IRQ_TAKEN_ID, IRQ_TAKEN_IF, IRQ_FLUSH, IRQ_FLUSH_ELW, ELW_EXE,
                       FLUSH_EX, FLUSH_WB, XRET_JUMP,
-                      DBG_TAKEN_ID, DBG_TAKEN_IF, DBG_FLUSH, DBG_WAIT_BRANCH, LOCKSTEP, RESTORE_PC } ctrl_fsm_cs, ctrl_fsm_ns;
+                      DBG_TAKEN_ID, DBG_TAKEN_IF, DBG_FLUSH, DBG_WAIT_BRANCH, LOCKSTEP, RESTORE_PC, LOCKSTEP_RESET, BOOT_LOCKSTEP } ctrl_fsm_cs, ctrl_fsm_ns;
 
   logic jump_done, jump_done_q, jump_in_dec, branch_in_id;
   logic boot_done, boot_done_q;
@@ -315,6 +316,31 @@ module riscv_controller
         end
       end
 
+      LOCKSTEP_RESET:
+      begin
+        is_decoding_o = 1'b0;
+        instr_req_o   = 1'b0;
+          if(lockstep_mode_id == 0)
+            begin
+              instr_req_o  = 1'b1;
+              restore_pc_o = 1'b1;
+              pc_set_o     = 1'b1;
+              pc_mux_o     = PC_LCKRESTORE;
+              ctrl_fsm_ns  = RESTORE_PC;
+            end
+      end
+
+      // copy boot address to instr fetch address
+      BOOT_LOCKSTEP:
+      begin
+        is_decoding_o = 1'b0;
+        instr_req_o   = 1'b1;
+        pc_mux_o      = PC_LCKRESTORE;
+        pc_set_o      = 1'b1;
+        boot_done     = 1'b1;
+        ctrl_fsm_ns   = FIRST_FETCH;
+      end
+
       // copy boot address to instr fetch address
       BOOT_SET:
       begin
@@ -396,12 +422,12 @@ module riscv_controller
       LOCKSTEP:
         begin
           instr_req_o = 1'b0;
-          if(lockstep_mode == 0)
+          if(lockstep_mode_if == 0)
             begin
               instr_req_o  = 1'b1;
               restore_pc_o = 1'b1;
               pc_set_o     = 1'b1;
-              pc_mux_o     = PC_JUMP;
+              pc_mux_o     = PC_LCKRESTORE;
               ctrl_fsm_ns  = RESTORE_PC;
             end
           if (branch_taken_ex_i)
@@ -617,7 +643,6 @@ module riscv_controller
 
       DECODE:
       begin
-        if(lockstep_mode) ctrl_fsm_ns = LOCKSTEP;
 
           if (branch_taken_ex_i)
           begin //taken branch
@@ -828,6 +853,9 @@ module riscv_controller
             is_decoding_o         = 1'b0;
             perf_pipeline_stall_o = data_load_event_i;
           end
+
+					if(lockstep_mode_if) ctrl_fsm_ns = LOCKSTEP;
+					if(lockstep_mode_id) ctrl_fsm_ns = LOCKSTEP_RESET;
       end
 
 

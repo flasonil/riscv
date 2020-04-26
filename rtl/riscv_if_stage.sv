@@ -79,7 +79,7 @@ input logic [31:0] pc_id_lck_i,
 
     input  logic [31:0] depc_i,    // address used to restore PC when the debug is served
 
-    input  logic  [2:0] pc_mux_i,              // sel for pc multiplexer
+    input  logic  [3:0] pc_mux_i,              // sel for pc multiplexer
     input  logic  [2:0] exc_pc_mux_i,          // selects ISR address
     input  logic  [4:0] exc_vec_pc_mux_i,      // selects ISR address for vectorized interrupt lines
 
@@ -156,6 +156,7 @@ input logic [31:0] pc_id_lck_i,
     unique case (pc_mux_i)
       PC_BOOT:      fetch_addr_n = {boot_addr_i, 1'b0};
       PC_JUMP:      fetch_addr_n = (restore_pc_i)?pc_id_lck_i:jump_target_id_i;
+			PC_LCKRESTORE:	fetch_addr_n = pc_id_lck_i;
       PC_BRANCH:    fetch_addr_n = jump_target_ex_i;
       PC_EXCEPTION: fetch_addr_n = exc_pc;             // set PC to exception handler
       PC_MRET:      fetch_addr_n = mepc_i; // PC is restored when returning from IRQ/exception

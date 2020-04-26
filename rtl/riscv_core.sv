@@ -60,36 +60,37 @@ module riscv_core
 )
 (
   // Clock and Reset
-  input  logic        clk_i,
-  input  logic        rst_ni,
+  input logic                            clk_i,
+  input logic                            rst_ni,
 
-  input  logic        clock_en_i,    // enable clock, otherwise it is gated
-  input  logic        test_en_i,     // enable all clock gates for testing
-  input  logic        lockstep_mode,
+  input logic                            clock_en_i, // enable clock, otherwise it is gated
+  input logic                            test_en_i, // enable all clock gates for testing
+  input logic                            lockstep_mode,
+  input logic                            lockstep_mode_id,
 
-  input  logic        fregfile_disable_i,  // disable the fp regfile, using int regfile instead
+  input logic                            fregfile_disable_i, // disable the fp regfile, using int regfile instead
 
   // Core ID, Cluster ID and boot address are considered more or less static
-  input  logic [31:0] boot_addr_i,
-  input  logic [ 3:0] core_id_i,
-  input  logic [ 5:0] cluster_id_i,
+  input logic [31:0]                     boot_addr_i,
+  input logic [ 3:0]                     core_id_i,
+  input logic [ 5:0]                     cluster_id_i,
 
   // Instruction memory interface
-  output logic                         instr_req_o,
-  input  logic                         instr_gnt_i,
-  input  logic                         instr_rvalid_i,
-  output logic                  [31:0] instr_addr_o,
-  input  logic [INSTR_RDATA_WIDTH-1:0] instr_rdata_i,
+  output logic                           instr_req_o,
+  input logic                            instr_gnt_i,
+  input logic                            instr_rvalid_i,
+  output logic [31:0]                    instr_addr_o,
+  input logic [INSTR_RDATA_WIDTH-1:0]    instr_rdata_i,
 
   // Data memory interface
-  output logic        data_req_o,
-  input  logic        data_gnt_i,
-  input  logic        data_rvalid_i,
-  output logic        data_we_o,
-  output logic [3:0]  data_be_o,
-  output logic [31:0] data_addr_o,
-  output logic [31:0] data_wdata_o,
-  input  logic [31:0] data_rdata_i,
+  output logic                           data_req_o,
+  input logic                            data_gnt_i,
+  input logic                            data_rvalid_i,
+  output logic                           data_we_o,
+  output logic [3:0]                     data_be_o,
+  output logic [31:0]                    data_addr_o,
+  output logic [31:0]                    data_wdata_o,
+  input logic [31:0]                     data_rdata_i,
 
   // IF/ID signals
   output logic                           is_hwlp_id,
@@ -112,6 +113,13 @@ module riscv_core
   input logic [31:0]                     pc_if_lck_i,
   input logic [31:0]                     pc_id_lck_i,
 
+ 	output logic [5:0]                     regfile_addr_ra_id_lck_o,
+	output logic [5:0]                     regfile_addr_rb_id_lck_o,
+	output logic [5:0]                     regfile_addr_rc_id_lck_o,
+ 	input logic [5:0]                      regfile_addr_ra_id_lck_i,
+	input logic [5:0]                      regfile_addr_rb_id_lck_i,
+	input logic [5:0]                      regfile_addr_rc_id_lck_i,
+
   // apu-interconnect
   // handshake signals
   output logic                           apu_master_req_o,
@@ -128,23 +136,195 @@ module riscv_core
   input logic [APU_NUSFLAGS_CPU-1:0]     apu_master_flags_i,
 
   // Interrupt inputs
-  input  logic        irq_i,                 // level sensitive IR lines
-  input  logic [4:0]  irq_id_i,
-  output logic        irq_ack_o,
-  output logic [4:0]  irq_id_o,
-  input  logic        irq_sec_i,
+  input logic                            irq_i, // level sensitive IR lines
+  input logic [4:0]                      irq_id_i,
+  output logic                           irq_ack_o,
+  output logic [4:0]                     irq_id_o,
+  input logic                            irq_sec_i,
 
-  output logic        sec_lvl_o,
+  output logic                           sec_lvl_o,
 
   // Debug Interface
-  input  logic        debug_req_i,
+  input logic                            debug_req_i,
 
 
   // CPU Control Signals
-  input  logic        fetch_enable_i,
-  output logic        core_busy_o,
+  input logic                            fetch_enable_i,
+  output logic                           core_busy_o,
 
-  input  logic [N_EXT_PERF_COUNTERS-1:0] ext_perf_counters_i
+  input logic [N_EXT_PERF_COUNTERS-1:0]  ext_perf_counters_i,
+
+  // ID/EX signals - LOCKSTEP
+  output logic [ 4:0]                    bmask_a_ex,
+  output logic [ 4:0]                    bmask_b_ex,
+  output logic [ 1:0]                    alu_vec_mode_ex,
+  output logic                           alu_is_clpx_ex, alu_is_subrot_ex,
+  output logic [ 1:0]                    alu_clpx_shift_ex,
+  output logic                           mult_sel_subword_ex,
+  output logic [ 1:0]                    mult_signed_mode_ex,
+  output logic [ 4:0]                    mult_imm_ex,
+  output logic [ 1:0]                    mult_dot_signed_ex,
+  output logic                           mult_is_clpx_ex,
+  output logic [ 1:0]                    mult_clpx_shift_ex,
+  output logic                           mult_clpx_img_ex,
+//ALL THESE SIGNALS DO NOT APPEAR TO SWITCH WHEN PULP-NN IS IN LOCKSTEP MODE, ARE BROADCAST FOR COMPLETENESS//
+	output logic                           csr_access_ex,
+  output logic [1:0]                     csr_op_ex,
+  output logic                           csr_irq_sec,
+  output logic                           csr_save_if,
+  output logic                           csr_save_id,
+  output logic                           csr_save_ex,
+  output logic [5:0]                     csr_cause,
+  output logic                           csr_save_cause,
+  output logic                           csr_restore_mret_id,
+  output logic                           csr_restore_uret_id,
+  output logic                           csr_restore_dret_id,
+//////////////////////////////////////////////////////////////////////////////////////////////////////////////
+  output logic                           data_misaligned_ex,
+	output logic                           data_err_ack,
+  output logic                           debug_mode,
+  output logic [2:0]                     debug_cause,
+  output logic                           debug_csr_save,
+  output logic                           perf_jump,
+  output logic                           perf_jr_stall,
+  output logic                           perf_ld_stall,
+  output logic                           perf_pipeline_stall,
+	output logic                           id_valid,
+	output logic [31:0]                    pc_ex,
+  output logic                           apu_en_ex,
+  output logic [WAPUTYPE-1:0]            apu_type_ex,
+  output logic [APU_NDSFLAGS_CPU-1:0]    apu_flags_ex,
+  output logic [APU_WOP_CPU-1:0]         apu_op_ex,
+  output logic [1:0]                     apu_lat_ex,
+  output logic [5:0]                     apu_waddr_ex,
+  output logic [5:0]                     regfile_waddr_ex,
+  output logic                           regfile_we_ex,
+  output logic [5:0]                     regfile_alu_waddr_ex,
+  output logic                           regfile_alu_we_ex,
+  input logic [ 4:0]                     bmask_a_ex_lck_i,
+  input logic [ 4:0]                     bmask_b_ex_lck_i,
+  input logic [ 1:0]                     alu_vec_mode_ex_lck_i,
+  input logic                            alu_is_clpx_ex_lck_i, alu_is_subrot_ex_lck_i,
+  input logic [ 1:0]                     alu_clpx_shift_ex_lck_i,
+  input logic                            mult_sel_subword_ex_lck_i,
+  input logic [ 1:0]                     mult_signed_mode_ex_lck_i,
+  input logic [ 4:0]                     mult_imm_ex_lck_i,
+  input logic [ 1:0]                     mult_dot_signed_ex_lck_i,
+  input logic                            mult_is_clpx_ex_lck_i,
+  input logic [ 1:0]                     mult_clpx_shift_ex_lck_i,
+  input logic                            mult_clpx_img_ex_lck_i,
+	input logic                            csr_access_ex_lck_i,
+  input logic [1:0]                      csr_op_ex_lck_i,
+  input logic                            csr_irq_sec_lck_i,
+  input logic                            csr_save_if_lck_i,
+  input logic                            csr_save_id_lck_i,
+  input logic                            csr_save_ex_lck_i,
+  input logic [5:0]                      csr_cause_lck_i,
+  input logic                            csr_save_cause_lck_i,
+  input logic                            csr_restore_mret_id_lck_i,
+  input logic                            csr_restore_uret_id_lck_i,
+  input logic                            csr_restore_dret_id_lck_i,
+  input logic                            data_misaligned_ex_lck_i,
+	input logic                            data_err_ack_lck_i,
+  input logic                            debug_mode_lck_i,
+  input logic [2:0]                      debug_cause_lck_i,
+  input logic                            debug_csr_save_lck_i,
+  input logic                            perf_jump_lck_i,
+  input logic                            perf_jr_stall_lck_i,
+  input logic                            perf_ld_stall_lck_i,
+  input logic                            perf_pipeline_stall_lck_i,
+	input logic                            id_valid_lck_i,
+	input logic [31:0]                     pc_ex_lck_i,
+  input logic                            apu_en_ex_lck_i,
+  input logic [WAPUTYPE-1:0]             apu_type_ex_lck_i,
+  input logic [APU_NDSFLAGS_CPU-1:0]     apu_flags_ex_lck_i,
+  input logic [APU_WOP_CPU-1:0]          apu_op_ex_lck_i,
+  input logic [1:0]                      apu_lat_ex_lck_i,
+  input logic [5:0]                      apu_waddr_ex_lck_i,
+  input logic [5:0]                      regfile_waddr_ex_lck_i,
+  input logic                            regfile_we_ex_lck_i,
+  input logic [5:0]                      regfile_alu_waddr_ex_lck_i,
+  input logic                            regfile_alu_we_ex_lck_i,
+  output logic [31:0]                    imm_i_type_lck_o,
+  output logic [31:0]                    imm_iz_type_lck_o,
+ 	output logic [31:0]                    imm_s_type_lck_o,
+ 	output logic [31:0]                    imm_sb_type_lck_o,
+  output logic [31:0]                    imm_u_type_lck_o,
+  output logic [31:0]                    imm_uj_type_lck_o,
+  output logic [31:0]                    imm_z_type_lck_o,
+  output logic [31:0]                    imm_s2_type_lck_o,
+  output logic [31:0]                    imm_bi_type_lck_o,
+  output logic [31:0]                    imm_s3_type_lck_o,
+  output logic [31:0]                    imm_vs_type_lck_o,
+  output logic [31:0]                    imm_vu_type_lck_o,
+  output logic [31:0]                    imm_shuffleb_type_lck_o,
+  output logic [31:0]                    imm_shuffleh_type_lck_o,
+  output logic [31:0]                    imm_clip_type_lck_o,
+  input logic [31:0]                     imm_i_type_lck_i,
+  input logic [31:0]                     imm_iz_type_lck_i,
+  input logic [31:0]                     imm_s_type_lck_i,
+  input logic [31:0]                     imm_sb_type_lck_i,
+  input logic [31:0]                     imm_u_type_lck_i,
+  input logic [31:0]                     imm_uj_type_lck_i,
+  input logic [31:0]                     imm_z_type_lck_i,
+  input logic [31:0]                     imm_s2_type_lck_i,
+  input logic [31:0]                     imm_bi_type_lck_i,
+  input logic [31:0]                     imm_s3_type_lck_i,
+  input logic [31:0]                     imm_vs_type_lck_i,
+  input logic [31:0]                     imm_vu_type_lck_i,
+  input logic [31:0]                     imm_shuffleb_type_lck_i,
+  input logic [31:0]                     imm_shuffleh_type_lck_i,
+  input logic [31:0]                     imm_clip_type_lck_i,
+  output logic [2:0]                     alu_op_a_mux_sel_lck_o,
+  output logic [2:0]                     alu_op_b_mux_sel_lck_o,
+  output logic [1:0]                     alu_op_c_mux_sel_lck_o,
+  input logic [2:0]                      alu_op_a_mux_sel_lck_i,
+  input logic [2:0]                      alu_op_b_mux_sel_lck_i,
+  input logic [1:0]                      alu_op_c_mux_sel_lck_i,
+  output logic [0:0]                     imm_a_mux_sel_lck_o,
+  output logic [3:0]                     imm_b_mux_sel_lck_o,
+  input logic [0:0]                      imm_a_mux_sel_lck_i,
+  input logic [3:0]                      imm_b_mux_sel_lck_i,
+  output logic [1:0]                     operand_a_fw_mux_sel_lck_o,
+  output logic [1:0]                     operand_b_fw_mux_sel_lck_o,
+  output logic [1:0]                     operand_c_fw_mux_sel_lck_o,
+  input logic [1:0]                      operand_a_fw_mux_sel_lck_i,
+  input logic [1:0]                      operand_b_fw_mux_sel_lck_i,
+  input logic [1:0]                      operand_c_fw_mux_sel_lck_i,
+	output logic                           prepost_useincr_lck_o,
+  output logic                           alu_en_lck_o,
+  output logic [ALU_OP_WIDTH-1:0]        alu_operator_lck_o,
+	input logic                            prepost_useincr_lck_i,
+  input logic                            alu_en_lck_i,
+  input logic [ALU_OP_WIDTH-1:0]         alu_operator_lck_i,
+  output logic [2:0]                     mult_operator_lck_o,
+  output logic                           mult_en_lck_o,
+	output logic                           mult_dot_en_lck_o,
+	output logic                           mult_int_en_lck_o,
+  input logic [2:0]                      mult_operator_lck_i,
+  input logic                            mult_en_lck_i,
+	input logic                            mult_dot_en_lck_i,
+	input logic                            mult_int_en_lck_i,
+  output logic                           misaligned_stall_lck_o,
+  output logic                           jr_stall_lck_o,
+  output logic                           load_stall_lck_o,
+  input logic                            misaligned_stall_lck_i,
+  input logic                            jr_stall_lck_i,
+  input logic                            load_stall_lck_i,
+	output logic [1:0]                     jump_in_id_lck_o,
+	input logic [1:0]                      jump_in_id_lck_i,
+  output logic                           data_we_id_lck_o,
+  output logic [1:0]                     data_type_id_lck_o,
+  output logic [1:0]                     data_sign_ext_id_lck_o,
+  output logic [1:0]                     data_reg_offset_id_lck_o,
+  output logic                           data_req_id_lck_o,
+  output logic                           data_load_event_id_lck_o,
+  input logic                            data_we_id_lck_i,
+  input logic [1:0]                      data_type_id_lck_i,
+  input logic [1:0]                      data_sign_ext_id_lck_i,
+  input logic [1:0]                      data_reg_offset_id_lck_i,
+  input logic                            data_req_id_lck_i,
+  input logic                            data_load_event_id_lck_i
 );
 
   localparam N_HWLP      = 2;
@@ -152,7 +332,8 @@ module riscv_core
   localparam APU         = ((SHARED_DSP_MULT==1) | (SHARED_INT_DIV==1) | (FPU==1)) ? 1 : 0;
 
   // IF/ID signals
-/*  logic              is_hwlp_id;
+/*
+  logic              is_hwlp_id;
   logic [N_HWLP-1:0] hwlp_dec_cnt_id;
   logic              instr_valid_id;
   logic [31:0]       instr_rdata_id;    // Instruction sampled inside IF stage
@@ -164,7 +345,7 @@ module riscv_core
 
   logic              clear_instr_valid;
   logic              pc_set;
-  logic [2:0]        pc_mux_id;     // Mux selector for next PC
+  logic [3:0]        pc_mux_id;     // Mux selector for next PC
   logic [2:0]        exc_pc_mux_id; // Mux selector for exception PC
   logic [5:0]        exc_cause;
   logic              trap_addr_mux;
@@ -173,15 +354,12 @@ module riscv_core
 
   // ID performance counter signals
   logic        is_decoding;
-
-  logic        useincr_addr_ex;   // Active when post increment
   logic        data_misaligned;
-
   logic        mult_multicycle;
 
   // Jump and branch target and decision (EX->IF)
   logic [31:0] jump_target_id, jump_target_ex;
-  logic        branch_in_ex;
+	logic					branch_in_ex;
   logic        branch_decision;
 
   logic        ctrl_busy;
@@ -189,37 +367,25 @@ module riscv_core
   logic        lsu_busy;
   logic        apu_busy;
 
-  logic [31:0] pc_ex; // PC of last executed branch or p.elw
 
   // ALU Control
   logic        alu_en_ex;
   logic [ALU_OP_WIDTH-1:0] alu_operator_ex;
-  logic [31:0] alu_operand_a_ex;
-  logic [31:0] alu_operand_b_ex;
-  logic [31:0] alu_operand_c_ex;
-  logic [ 4:0] bmask_a_ex;
-  logic [ 4:0] bmask_b_ex;
-  logic [ 1:0] imm_vec_ext_ex;
-  logic [ 1:0] alu_vec_mode_ex;
-  logic        alu_is_clpx_ex, alu_is_subrot_ex;
-  logic [ 1:0] alu_clpx_shift_ex;
+	logic [1:0]              imm_vec_ext_ex;
+  logic [31:0]             alu_operand_a_ex;
+  logic [31:0]             alu_operand_b_ex;
+  logic [31:0]             alu_operand_c_ex;
+
 
   // Multiplier Control
-  logic [ 2:0] mult_operator_ex;
+  logic [2:0]  mult_operator_ex;
+  logic        mult_en_ex;
   logic [31:0] mult_operand_a_ex;
   logic [31:0] mult_operand_b_ex;
   logic [31:0] mult_operand_c_ex;
-  logic        mult_en_ex;
-  logic        mult_sel_subword_ex;
-  logic [ 1:0] mult_signed_mode_ex;
-  logic [ 4:0] mult_imm_ex;
   logic [31:0] mult_dot_op_a_ex;
   logic [31:0] mult_dot_op_b_ex;
   logic [31:0] mult_dot_op_c_ex;
-  logic [ 1:0] mult_dot_signed_ex;
-  logic        mult_is_clpx_ex_o;
-  logic [ 1:0] mult_clpx_shift_ex;
-  logic        mult_clpx_img_ex;
 
   // FPU
   logic [C_PC-1:0]            fprec_csr;
@@ -230,13 +396,7 @@ module riscv_core
 
 
   // APU
-  logic                        apu_en_ex;
-  logic [WAPUTYPE-1:0]         apu_type_ex;
-  logic [APU_NDSFLAGS_CPU-1:0] apu_flags_ex;
-  logic [APU_WOP_CPU-1:0]      apu_op_ex;
-  logic [1:0]                  apu_lat_ex;
-  logic [APU_NARGS_CPU-1:0][31:0]                 apu_operands_ex;
-  logic [5:0]                  apu_waddr_ex;
+  logic [APU_NARGS_CPU-1:0][31:0] apu_operands_ex;
 
   logic [2:0][5:0]             apu_read_regs;
   logic [2:0]                  apu_read_regs_valid;
@@ -251,22 +411,16 @@ module riscv_core
   logic                        perf_apu_wb;
 
   // Register Write Control
-  logic [5:0]  regfile_waddr_ex;
-  logic        regfile_we_ex;
   logic [5:0]  regfile_waddr_fw_wb_o;        // From WB to ID
   logic        regfile_we_wb;
   logic [31:0] regfile_wdata;
 
-  logic [5:0]  regfile_alu_waddr_ex;
-  logic        regfile_alu_we_ex;
 
   logic [5:0]  regfile_alu_waddr_fw;
   logic        regfile_alu_we_fw;
   logic [31:0] regfile_alu_wdata_fw;
 
   // CSR control
-  logic        csr_access_ex;
-  logic  [1:0] csr_op_ex;
   logic [23:0] mtvec, utvec;
 
   logic        csr_access;
@@ -277,23 +431,19 @@ module riscv_core
   logic [31:0] csr_wdata;
   PrivLvl_t    current_priv_lvl;
 
-  // Data Memory Control:  From ID stage (id-ex pipe) <--> load store unit
-  logic        data_we_ex;
-  logic [1:0]  data_type_ex;
-  logic [1:0]  data_sign_ext_ex;
-  logic [1:0]  data_reg_offset_ex;
-  logic        data_req_ex;
-  logic        data_load_event_ex;
-  logic        data_misaligned_ex;
-
-  logic [31:0] lsu_rdata;
+	logic					data_req_ex;
+	logic					data_we_ex;
+	logic	[1:0]		data_type_ex;
+	logic [1:0]		data_sign_ext_ex;
+	logic [1:0]		data_reg_offset_ex;
+	logic					data_load_event_ex;
+  logic [31:0] 	lsu_rdata;
 
   // stall control
   logic        halt_if;
   logic        id_ready;
   logic        ex_ready;
 
-  logic        id_valid;
   logic        ex_valid;
   logic        wb_valid;
 
@@ -307,23 +457,10 @@ module riscv_core
 
   // Interrupts
   logic        m_irq_enable, u_irq_enable;
-  logic        csr_irq_sec;
   logic [31:0] mepc, uepc, depc;
 
-  logic        csr_save_cause;
-  logic        csr_save_if;
-  logic        csr_save_id;
-  logic        csr_save_ex;
-  logic [5:0]  csr_cause;
-  logic        csr_restore_mret_id;
-  logic        csr_restore_uret_id;
-
-  logic        csr_restore_dret_id;
 
   // debug mode and dcsr configuration
-  logic        debug_mode;
-  logic [2:0]  debug_cause;
-  logic        debug_csr_save;
   logic        debug_single_step;
   logic        debug_ebreakm;
   logic        debug_ebreaku;
@@ -341,10 +478,6 @@ module riscv_core
 
   // Performance Counters
   logic        perf_imiss;
-  logic        perf_jump;
-  logic        perf_jr_stall;
-  logic        perf_ld_stall;
-  logic        perf_pipeline_stall;
 
   //core busy signals
   logic        core_ctrl_firstfetch, core_busy_int, core_busy_q;
@@ -359,26 +492,23 @@ module riscv_core
   logic                             data_we_pmp;
   logic                             data_gnt_pmp;
   logic                             data_err_pmp;
-  logic                             data_err_ack;
   logic                             instr_req_pmp;
   logic                             instr_gnt_pmp;
   logic [31:0]                      instr_addr_pmp;
   logic                             instr_err_pmp;
 
-   logic lck_mode;
-logic restore_pc;
+  logic lck_mode,lck_mode_id;
+	logic restore_pc;
 
-//   logic instr_req_o_internal;
-   always_comb begin
-      if((cluster_id_i==6'h1f)||(core_id_i=='0))
-        lck_mode = 0;
-      else
-        lck_mode = lockstep_mode;
-//      if((lck_mode == 1)&&(core_id_i!='0)&&(cluster_id_i=='0))
-//        instr_req_o = 1'b0;
-//      else
-//        instr_req_o = instr_req_o_internal;//instr_req_o = 1'b0;
-   end
+  always_comb begin
+    if((cluster_id_i==6'h1f)||(core_id_i=='0))begin
+      lck_mode = 0;
+      lck_mode_id = 0;
+    end else begin
+      lck_mode = lockstep_mode;
+      lck_mode_id = lockstep_mode_id;
+		end		
+  end
 
   //Simchecker signal
   logic is_interrupt;
@@ -444,10 +574,7 @@ logic restore_pc;
   //////////////////////////////////////////////////////////////////////////////////////////////
 
   logic        clk;
-
   logic        clock_en;
-
-
   logic        sleeping;
 
 
@@ -491,80 +618,81 @@ logic restore_pc;
   //                                              //
   //////////////////////////////////////////////////
   riscv_if_stage
-  #(
-    .N_HWLP              ( N_HWLP            ),
-    .RDATA_WIDTH         ( INSTR_RDATA_WIDTH ),
-    .FPU                 ( FPU               ),
-    .DM_HaltAddress      ( DM_HaltAddress    )
-  )
+    #(
+      .N_HWLP              ( N_HWLP            ),
+      .RDATA_WIDTH         ( INSTR_RDATA_WIDTH ),
+      .FPU                 ( FPU               ),
+      .DM_HaltAddress      ( DM_HaltAddress    )
+      )
   if_stage_i
-  (
-    .clk                 ( clk               ),
-    .rst_n               ( rst_ni            ),
-.lockstep_mode(lck_mode),
-.restore_pc_i(restore_pc),
-.pc_id_lck_i(pc_id_lck_i),
+    (
+     .clk                 ( clk               ),
+     .rst_n               ( rst_ni            ),
+		 
+     .lockstep_mode       ( lck_mode          ),
+	   .restore_pc_i        ( restore_pc        ),
+		 .pc_id_lck_i         ( pc_id_lck_i       ),
+     
+     // boot address
+     .boot_addr_i         ( boot_addr_i[31:1] ),
 
-    // boot address
-    .boot_addr_i         ( boot_addr_i[31:1] ),
+     // trap vector location
+     .m_trap_base_addr_i  ( mtvec             ),
+     .u_trap_base_addr_i  ( utvec             ),
+     .trap_addr_mux_i     ( trap_addr_mux     ),
+     
+     // instruction request control
+     .req_i               ( instr_req_int     ),
+     
+     // instruction cache interface
+     .instr_req_o         ( instr_req_pmp     ),
+     .instr_addr_o        ( instr_addr_pmp    ),
+     .instr_gnt_i         ( instr_gnt_pmp     ),
+     .instr_rvalid_i      ( instr_rvalid_i    ),
+     .instr_rdata_i       ( instr_rdata_i     ),
+     .instr_err_pmp_i     ( instr_err_pmp     ),
+     
+     // outputs to ID stage
+     .hwlp_dec_cnt_id_o   ( hwlp_dec_cnt_id   ),
+     .is_hwlp_id_o        ( is_hwlp_id        ),
+     .instr_valid_id_o    ( instr_valid_id    ),
+     .instr_rdata_id_o    ( instr_rdata_id    ),
+     .is_compressed_id_o  ( is_compressed_id  ),
+     .illegal_c_insn_id_o ( illegal_c_insn_id ),
+     .pc_if_o             ( pc_if             ),
+     .pc_id_o             ( pc_id             ),
+     .is_fetch_failed_o   ( is_fetch_failed_id ),
 
-    // trap vector location
-    .m_trap_base_addr_i  ( mtvec             ),
-    .u_trap_base_addr_i  ( utvec             ),
-    .trap_addr_mux_i     ( trap_addr_mux     ),
+     // control signals
+     .clear_instr_valid_i ( clear_instr_valid ),
+     .pc_set_i            ( pc_set            ),
+     
+     .mepc_i              ( mepc              ), // exception return address
+     .uepc_i              ( uepc              ), // exception return address
+     
+     .depc_i              ( depc              ), // debug return address
+     
+     .pc_mux_i            ( pc_mux_id         ), // sel for pc multiplexer
+     .exc_pc_mux_i        ( exc_pc_mux_id     ),
+     .exc_vec_pc_mux_i    ( exc_cause[4:0]    ),
+     
+     // from hwloop registers
+     .hwlp_start_i        ( hwlp_start        ),
+     .hwlp_end_i          ( hwlp_end          ),
+     .hwlp_cnt_i          ( hwlp_cnt          ),
+     
 
-    // instruction request control
-    .req_i               ( instr_req_int     ),
-
-    // instruction cache interface
-    .instr_req_o         ( instr_req_pmp     ),
-    .instr_addr_o        ( instr_addr_pmp    ),
-    .instr_gnt_i         ( instr_gnt_pmp     ),
-    .instr_rvalid_i      ( instr_rvalid_i    ),
-    .instr_rdata_i       ( instr_rdata_i     ),
-    .instr_err_pmp_i     ( instr_err_pmp     ),
-
-    // outputs to ID stage
-    .hwlp_dec_cnt_id_o   ( hwlp_dec_cnt_id   ),
-    .is_hwlp_id_o        ( is_hwlp_id        ),
-    .instr_valid_id_o    ( instr_valid_id    ),
-    .instr_rdata_id_o    ( instr_rdata_id    ),
-    .is_compressed_id_o  ( is_compressed_id  ),
-    .illegal_c_insn_id_o ( illegal_c_insn_id ),
-    .pc_if_o             ( pc_if             ),
-    .pc_id_o             ( pc_id             ),
-    .is_fetch_failed_o   ( is_fetch_failed_id ),
-
-    // control signals
-    .clear_instr_valid_i ( clear_instr_valid ),
-    .pc_set_i            ( pc_set            ),
-
-    .mepc_i              ( mepc              ), // exception return address
-    .uepc_i              ( uepc              ), // exception return address
-
-    .depc_i              ( depc              ), // debug return address
-
-    .pc_mux_i            ( pc_mux_id         ), // sel for pc multiplexer
-    .exc_pc_mux_i        ( exc_pc_mux_id     ),
-    .exc_vec_pc_mux_i    ( exc_cause[4:0]    ),
-
-    // from hwloop registers
-    .hwlp_start_i        ( hwlp_start        ),
-    .hwlp_end_i          ( hwlp_end          ),
-    .hwlp_cnt_i          ( hwlp_cnt          ),
-
-
-    // Jump targets
-    .jump_target_id_i    ( jump_target_id    ),
-    .jump_target_ex_i    ( jump_target_ex    ),
-
-    // pipeline stalls
-    .halt_if_i           ( halt_if           ),
-    .id_ready_i          ( id_ready          ),
-
-    .if_busy_o           ( if_busy           ),
-    .perf_imiss_o        ( perf_imiss        )
-  );
+     // Jump targets
+     .jump_target_id_i    ( jump_target_id    ),
+     .jump_target_ex_i    ( jump_target_ex    ),
+     
+     // pipeline stalls
+     .halt_if_i           ( halt_if           ),
+     .id_ready_i          ( id_ready          ),
+     
+     .if_busy_o           ( if_busy           ),
+     .perf_imiss_o        ( perf_imiss        )
+     );
 
 
   /////////////////////////////////////////////////
@@ -596,15 +724,105 @@ logic restore_pc;
   )
   id_stage_i
   (
-    .clk                          ( clk                  ),
-    .rst_n                        ( rst_ni               ),
+   .clk                          ( clk                      ),
+   .rst_n                        ( rst_ni                   ),
 
-    .test_en_i                    ( test_en_i            ),
+   .test_en_i                    ( test_en_i                ),
+   
+   .fregfile_disable_i           ( fregfile_disable_i       ),
 
-    .fregfile_disable_i           ( fregfile_disable_i   ),
+	 .lockstep_mode_if             ( lck_mode                 ),
+	 .lockstep_mode_id             ( lck_mode_id              ),
+	 .restore_pc_o                 ( restore_pc               ),
+	 .pc_id_lck_i                  ( pc_id_lck_i              ),
+	 
+   .regfile_addr_ra_id           ( regfile_addr_ra_id_lck_o ),
+	 .regfile_addr_rb_id           ( regfile_addr_rb_id_lck_o ),
+	 .regfile_addr_rc_id           ( regfile_addr_rc_id_lck_o ),
+	 .regfile_addr_ra_id_lck_i     ( regfile_addr_ra_id_lck_i ),
+	 .regfile_addr_rb_id_lck_i     ( regfile_addr_rb_id_lck_i ),
+	 .regfile_addr_rc_id_lck_i     ( regfile_addr_rc_id_lck_i ),
 
-.lockstep_mode(lck_mode),
-.restore_pc_o(restore_pc),
+   .imm_i_type                   ( imm_i_type_lck_o           ),
+   .imm_iz_type                  ( imm_i_type_lck_o           ),
+   .imm_s_type                   ( imm_s_type_lck_o           ),
+   .imm_sb_type                  ( imm_sb_type_lck_o          ),
+   .imm_u_type                   ( imm_u_type_lck_o           ),
+   .imm_uj_type                  ( imm_uj_type_lck_o          ),
+   .imm_z_type                   ( imm_z_type_lck_o           ),
+   .imm_s2_type                  ( imm_s2_type_lck_o          ),
+   .imm_bi_type                  ( imm_bi_type_lck_o          ),
+   .imm_s3_type                  ( imm_s3_type_lck_o          ),
+   .imm_vs_type                  ( imm_vs_type_lck_o          ),
+   .imm_vu_type                  ( imm_vu_type_lck_o          ),
+   .imm_shuffleb_type            ( imm_shuffleb_type_lck_o    ),
+   .imm_shuffleh_type            ( imm_shuffleh_type_lck_o    ),
+   .imm_clip_type                ( imm_clip_type_lck_o        ),
+   .alu_op_a_mux_sel             ( alu_op_a_mux_sel_lck_o     ),
+   .alu_op_b_mux_sel             ( alu_op_b_mux_sel_lck_o     ),
+   .alu_op_c_mux_sel             ( alu_op_c_mux_sel_lck_o     ),
+   .imm_a_mux_sel                ( imm_a_mux_sel_lck_o        ),
+   .imm_b_mux_sel                ( imm_b_mux_sel_lck_o        ),
+   .operand_a_fw_mux_sel         ( operand_a_fw_mux_sel_lck_o ),
+   .operand_b_fw_mux_sel         ( operand_b_fw_mux_sel_lck_o ),
+   .operand_c_fw_mux_sel         ( operand_c_fw_mux_sel_lck_o ),
+   .prepost_useincr              ( prepost_useincr_lck_o      ),
+   .alu_en                       ( alu_en_lck_o               ),
+   .alu_operator                 ( alu_operator_lck_o         ),
+   .mult_operator                ( mult_operator_lck_o        ),
+   .mult_en                      ( mult_en_lck_o              ),
+   .mult_dot_en                  ( mult_dot_en_lck_o          ),
+   .mult_int_en                  ( mult_int_en_lck_o          ),
+   .misaligned_stall             ( misaligned_stall_lck_o     ),
+   .jr_stall                     ( jr_stall_lck_o             ),
+   .load_stall                   ( load_stall_lck_o           ),
+   .jump_in_id                   ( jump_in_id_lck_o           ),
+   .data_we_id                   ( data_we_id_lck_o           ),
+   .data_type_id                 ( data_type_id_lck_o         ),
+   .data_sign_ext_id             ( data_sign_ext_id_lck_o     ),
+   .data_reg_offset_id           ( data_reg_offset_id_lck_o   ),
+   .data_req_id                  ( data_req_id_lck_o          ),
+   .data_load_event_id           ( data_load_event_id_lck_o   ),
+   .imm_i_type_lck_i             ( imm_i_type_lck_i           ),
+   .imm_iz_type_lck_i            ( imm_iz_type_lck_i          ),
+   .imm_s_type_lck_i             ( imm_s_type_lck_i           ),
+   .imm_sb_type_lck_i            ( imm_sb_type_lck_i          ),
+   .imm_u_type_lck_i             ( imm_u_type_lck_i           ),
+   .imm_uj_type_lck_i            ( imm_uj_type_lck_i          ),
+   .imm_z_type_lck_i             ( imm_z_type_lck_i           ),
+   .imm_s2_type_lck_i            ( imm_s2_type_lck_i          ),
+   .imm_bi_type_lck_i            ( imm_bi_type_lck_i          ),
+   .imm_s3_type_lck_i            ( imm_s3_type_lck_i          ),
+   .imm_vs_type_lck_i            ( imm_vs_type_lck_i          ),
+   .imm_vu_type_lck_i            ( imm_vu_type_lck_i          ),
+   .imm_shuffleb_type_lck_i      ( imm_shuffleb_type_lck_i    ),
+   .imm_shuffleh_type_lck_i      ( imm_shuffleh_type_lck_i    ),
+   .imm_clip_type_lck_i          ( imm_clip_type_lck_i        ),
+   .alu_op_a_mux_sel_lck_i       ( alu_op_a_mux_sel_lck_i     ),
+   .alu_op_b_mux_sel_lck_i       ( alu_op_b_mux_sel_lck_i     ),
+   .alu_op_c_mux_sel_lck_i       ( alu_op_c_mux_sel_lck_i     ),
+   .imm_a_mux_sel_lck_i          ( imm_a_mux_sel_lck_i        ),
+   .imm_b_mux_sel_lck_i          ( imm_b_mux_sel_lck_i        ),
+   .operand_a_fw_mux_sel_lck_i   ( operand_a_fw_mux_sel_lck_i ),
+   .operand_b_fw_mux_sel_lck_i   ( operand_b_fw_mux_sel_lck_i ),
+   .operand_c_fw_mux_sel_lck_i   ( operand_c_fw_mux_sel_lck_i ),
+   .prepost_useincr_lck_i        ( prepost_useincr_lck_i      ),
+   .alu_en_lck_i                 ( alu_en_lck_i               ),
+   .alu_operator_lck_i           ( alu_operator_lck_i         ),
+   .mult_operator_lck_i          ( mult_operator_lck_i        ),
+   .mult_en_lck_i                ( mult_en_lck_i              ),
+   .mult_dot_en_lck_i            ( mult_dot_en_lck_i          ),
+   .mult_int_en_lck_i            ( mult_int_en_lck_i          ),
+   .misaligned_stall_lck_i       ( misaligned_stall_lck_i     ),
+   .jr_stall_lck_i               ( jr_stall_lck_i             ),
+   .load_stall_lck_i             ( load_stall_lck_i           ),
+   .jump_in_id_lck_i             ( jump_in_id_lck_i           ),
+   .data_we_id_lck_i             ( data_we_id_lck_i           ),
+   .data_type_id_lck_i           ( data_type_id_lck_i         ),
+   .data_sign_ext_id_lck_i       ( data_sign_ext_id_lck_i     ),
+   .data_reg_offset_id_lck_i     ( data_reg_offset_id_lck_i   ),
+   .data_req_id_lck_i            ( data_req_id_lck_i          ),
+   .data_load_event_id_lck_i     ( data_load_event_id_lck_i   ),
 
     // Processor Enable
     .fetch_enable_i               ( fetch_enable_i       ),
@@ -614,7 +832,7 @@ logic restore_pc;
 
     // Interface to instruction memory
     .hwlp_dec_cnt_i               ( lck_mode ? hwlp_dec_cnt_id_lck_i : hwlp_dec_cnt_id      ),
-    .is_hwlp_i                    ( lck_mode ? is_hwlp_id_lck_i      : is_hwlp_id          ),
+    .is_hwlp_i                    ( lck_mode ? is_hwlp_id_lck_i      : is_hwlp_id           ),
     .instr_valid_i                ( lck_mode ? instr_valid_id_lck_i  : instr_valid_id       ),
     .instr_rdata_i                ( lck_mode ? instr_rdata_id_lck_i  : instr_rdata_id       ),
     .instr_req_o                  ( instr_req_int        ),
@@ -635,8 +853,8 @@ logic restore_pc;
     .is_compressed_i              ( lck_mode ? is_compressed_id_lck_i   :is_compressed_id     ),
     .is_fetch_failed_i            ( lck_mode ? is_fetch_failed_id_lck_i :is_fetch_failed_id   ),
 
-    .pc_if_i                      ( lck_mode ? pc_if_lck_i :pc_if                ),
-    .pc_id_i                      ( lck_mode ? pc_id_lck_i :pc_id                ),
+    .pc_if_i                      ( lck_mode ? pc_if_lck_i : pc_if                ),
+    .pc_id_i                      ( lck_mode ? pc_id_lck_i : pc_id                ),
 
     // Stalls
     .halt_if_o                    ( halt_if              ),
@@ -808,7 +1026,7 @@ logic restore_pc;
    .APU_NUSFLAGS_CPU ( APU_NUSFLAGS_CPU   )
   )
   ex_stage_i
-  (
+	(
     // Global signals: Clock and active low asynchronous reset
     .clk                        ( clk                          ),
     .rst_n                      ( rst_ni                       ),
@@ -819,13 +1037,13 @@ logic restore_pc;
     .alu_operand_a_i            ( alu_operand_a_ex             ), // from ID/EX pipe registers
     .alu_operand_b_i            ( alu_operand_b_ex             ), // from ID/EX pipe registers
     .alu_operand_c_i            ( alu_operand_c_ex             ), // from ID/EX pipe registers
-    .bmask_a_i                  ( bmask_a_ex                   ), // from ID/EX pipe registers
-    .bmask_b_i                  ( bmask_b_ex                   ), // from ID/EX pipe registers
+    .bmask_a_i                  ( lck_mode_id ? bmask_a_ex_lck_i : bmask_a_ex                   ), // from ID/EX pipe registers
+    .bmask_b_i                  ( lck_mode_id ? bmask_b_ex_lck_i : bmask_b_ex                   ), // from ID/EX pipe registers
     .imm_vec_ext_i              ( imm_vec_ext_ex               ), // from ID/EX pipe registers
-    .alu_vec_mode_i             ( alu_vec_mode_ex              ), // from ID/EX pipe registers
-    .alu_is_clpx_i              ( alu_is_clpx_ex               ), // from ID/EX pipe registers
-    .alu_is_subrot_i            ( alu_is_subrot_ex             ), // from ID/Ex pipe registers
-    .alu_clpx_shift_i           ( alu_clpx_shift_ex            ), // from ID/EX pipe registers
+    .alu_vec_mode_i             ( lck_mode_id ? alu_vec_mode_ex_lck_i   : alu_vec_mode_ex              ), // from ID/EX pipe registers
+    .alu_is_clpx_i              ( lck_mode_id ? alu_is_clpx_ex_lck_i    : alu_is_clpx_ex               ), // from ID/EX pipe registers
+    .alu_is_subrot_i            ( lck_mode_id ? alu_is_subrot_ex_lck_i  : alu_is_subrot_ex             ), // from ID/Ex pipe registers
+    .alu_clpx_shift_i           ( lck_mode_id ? alu_clpx_shift_ex_lck_i : alu_clpx_shift_ex            ), // from ID/EX pipe registers
 
     // Multipler
     .mult_operator_i            ( mult_operator_ex             ), // from ID/EX pipe registers
@@ -833,16 +1051,16 @@ logic restore_pc;
     .mult_operand_b_i           ( mult_operand_b_ex            ), // from ID/EX pipe registers
     .mult_operand_c_i           ( mult_operand_c_ex            ), // from ID/EX pipe registers
     .mult_en_i                  ( mult_en_ex                   ), // from ID/EX pipe registers
-    .mult_sel_subword_i         ( mult_sel_subword_ex          ), // from ID/EX pipe registers
-    .mult_signed_mode_i         ( mult_signed_mode_ex          ), // from ID/EX pipe registers
-    .mult_imm_i                 ( mult_imm_ex                  ), // from ID/EX pipe registers
+    .mult_sel_subword_i         ( lck_mode_id ? mult_sel_subword_ex_lck_i : mult_sel_subword_ex          ), // from ID/EX pipe registers
+    .mult_signed_mode_i         ( lck_mode_id ? mult_signed_mode_ex_lck_i : mult_signed_mode_ex          ), // from ID/EX pipe registers
+    .mult_imm_i                 ( lck_mode_id ? mult_imm_ex_lck_i         : mult_imm_ex                  ), // from ID/EX pipe registers
     .mult_dot_op_a_i            ( mult_dot_op_a_ex             ), // from ID/EX pipe registers
     .mult_dot_op_b_i            ( mult_dot_op_b_ex             ), // from ID/EX pipe registers
     .mult_dot_op_c_i            ( mult_dot_op_c_ex             ), // from ID/EX pipe registers
-    .mult_dot_signed_i          ( mult_dot_signed_ex           ), // from ID/EX pipe registers
-    .mult_is_clpx_i             ( mult_is_clpx_ex              ), // from ID/EX pipe registers
-    .mult_clpx_shift_i          ( mult_clpx_shift_ex           ), // from ID/EX pipe registers
-    .mult_clpx_img_i            ( mult_clpx_img_ex             ), // from ID/EX pipe registers
+    .mult_dot_signed_i          ( lck_mode_id ? mult_dot_signed_ex_lck_i : mult_dot_signed_ex           ), // from ID/EX pipe registers
+    .mult_is_clpx_i             ( lck_mode_id ? mult_is_clpx_ex_lck_i    : mult_is_clpx_ex              ), // from ID/EX pipe registers
+    .mult_clpx_shift_i          ( lck_mode_id ? mult_clpx_shift_ex_lck_i : mult_clpx_shift_ex           ), // from ID/EX pipe registers
+    .mult_clpx_img_i            ( lck_mode_id ? mult_clpx_img_ex_lck_i   : mult_clpx_img_ex             ), // from ID/EX pipe registers
 
     .mult_multicycle_o          ( mult_multicycle              ), // to ID/EX pipe registers
 
@@ -852,12 +1070,12 @@ logic restore_pc;
     .fpu_fflags_we_o            ( fflags_we                    ),
 
     // APU
-    .apu_en_i                   ( apu_en_ex                    ),
-    .apu_op_i                   ( apu_op_ex                    ),
-    .apu_lat_i                  ( apu_lat_ex                   ),
+    .apu_en_i                   ( lck_mode_id ? apu_en_ex_lck_i  : apu_en_ex                    ),
+    .apu_op_i                   ( lck_mode_id ? apu_op_ex_lck_i  : apu_op_ex                    ),
+    .apu_lat_i                  ( lck_mode_id ? apu_lat_ex_lck_i : apu_lat_ex                   ),
     .apu_operands_i             ( apu_operands_ex              ),
-    .apu_waddr_i                ( apu_waddr_ex                 ),
-    .apu_flags_i                ( apu_flags_ex                 ),
+    .apu_waddr_i                ( lck_mode_id ? apu_waddr_ex_lck_i : apu_waddr_ex                 ),
+    .apu_flags_i                ( lck_mode_id ? apu_flags_ex_lck_i : apu_flags_ex                 ),
 
     .apu_read_regs_i            ( apu_read_regs                ),
     .apu_read_regs_valid_i      ( apu_read_regs_valid          ),
@@ -888,16 +1106,16 @@ logic restore_pc;
     .lsu_rdata_i                ( lsu_rdata                    ),
 
     // interface with CSRs
-    .csr_access_i               ( csr_access_ex                ),
+    .csr_access_i               ( lck_mode_id ? csr_access_ex_lck_i : csr_access_ex                ),
     .csr_rdata_i                ( csr_rdata                    ),
 
     // From ID Stage: Regfile control signals
     .branch_in_ex_i             ( branch_in_ex                 ),
-    .regfile_alu_waddr_i        ( regfile_alu_waddr_ex         ),
-    .regfile_alu_we_i           ( regfile_alu_we_ex            ),
+    .regfile_alu_waddr_i        ( lck_mode_id ? regfile_alu_waddr_ex_lck_i : regfile_alu_waddr_ex         ),
+    .regfile_alu_we_i           ( lck_mode_id ? regfile_alu_we_ex_lck_i    : regfile_alu_we_ex            ),
 
-    .regfile_waddr_i            ( regfile_waddr_ex             ),
-    .regfile_we_i               ( regfile_we_ex                ),
+    .regfile_waddr_i            ( lck_mode_id ? regfile_waddr_ex_lck_i : regfile_waddr_ex             ),
+    .regfile_we_i               ( lck_mode_id ? regfile_we_ex_lck_i    : regfile_we_ex                ),
 
     // Output of ex stage pipeline
     .regfile_waddr_wb_o         ( regfile_waddr_fw_wb_o        ),
